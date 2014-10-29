@@ -50,7 +50,7 @@ inline void join_to_array(uint8_t *array, uint8_t join)
 }
 
 void extend_array(Extend_Array *extend_array, unsigned long long used_array_sz, 
-                  uint8_t *extend, uint32_t extend_sz, uint8_t hashed_end)
+                  uint8_t *extend, uint32_t extend_sz, uint8_t hashed_end, int max_iter)
 {
   if(!extend_array)
     return;
@@ -62,11 +62,11 @@ void extend_array(Extend_Array *extend_array, unsigned long long used_array_sz,
     if(extend_array->times_realloced)
     {
       //reallocate on an exponential curve, modern computers have plenty ram
-      extend_array->actual_array_sz += (2 << extend_array->times_realloced++) * REALLOC_BASE_SZ;
+      extend_array->actual_array_sz += (2 << extend_array->times_realloced++) * (max_iter * 64 + SHA256_DIGEST_LENGTH);
       extend_array->array = realloc(extend_array->array, extend_array->actual_array_sz);
     }else{
       //allocate the base size
-      extend_array->actual_array_sz += REALLOC_BASE_SZ;
+      extend_array->actual_array_sz += max_iter * 64 + SHA256_DIGEST_LENGTH;
       extend_array->times_realloced++;
 
       extend_array->array = malloc(extend_array->actual_array_sz); //if we have not allocated anything, malloc
@@ -83,7 +83,7 @@ void extend_array(Extend_Array *extend_array, unsigned long long used_array_sz,
 }
 
 uint64 mix_hashed_nums(uint8_t *hashed_nums, const uint8_t *unhashedData, size_t unhashed_sz,
-                       uint8_t **mixed_hash, uint8_t *hash_digest)
+                       uint8_t **mixed_hash, uint8_t *hash_digest, int num_iter, bool *completed)
 {
   uint32_t index = 0;
   const uint32_t hashed_nums_len = SHA256_LEN;
@@ -100,7 +100,7 @@ uint64 mix_hashed_nums(uint8_t *hashed_nums, const uint8_t *unhashedData, size_t
   //set the last two bytes to \000
   *(tmp_array + SHA256_LEN) = *(tmp_array + SHA256_LEN + 1) = 0;
 
-  for(count = 0;; count++)
+  for(count = 0; count < num_iter; count++)
   {
     //+1 to keeps a 0 value of *(hashed_nums + index) moving on
     index += hex_char_to_int(*(hashed_nums + index));
@@ -118,7 +118,7 @@ uint64 mix_hashed_nums(uint8_t *hashed_nums, const uint8_t *unhashedData, size_t
     sha256_to_str(tmp_array, SHA256_LEN + 1, tmp_array, hash_digest);
 
     //extend the expanded hash to the array
-    extend_array(&new_hash, count * SHA256_LEN, tmp_array, SHA256_LEN, false);
+    extend_array(&new_hash, count * SHA256_LEN, tmp_array, SHA256_LEN, false, num_iter);
 
     //check if the last value of hashed_nums is the same as the last value in tmp_array
     if(index == hashed_nums_len - 1 && tmp_val == *(tmp_array + SHA256_LEN - 1))
@@ -129,9 +129,10 @@ uint64 mix_hashed_nums(uint8_t *hashed_nums, const uint8_t *unhashedData, size_t
       break;
 	}
   }
-
+  if (count == num_iter) *completed = false;
+  else *completed = true;
   //extend the unhashed data to the end and add the \000 to the end
-  extend_array(&new_hash, count * SHA256_LEN, (u8int*)unhashedData, unhashed_sz, true);
+  extend_array(&new_hash, count * SHA256_LEN, (u8int*)unhashedData, unhashed_sz, true, num_iter);
 
   //assign the address of new_hash's array to mixed_hash
   *mixed_hash = new_hash.array;
@@ -144,11 +145,12 @@ u8int *dcrypt_buffer_alloc()
   return malloc(DCRYPT_DIGEST_LENGTH);
 }
 
-void dcrypt(const uint8_t *data, size_t data_sz, uint8_t *hash_digest, u32int *hashRet)
+bool dcrypt(const uint8_t *data, size_t data_sz, uint8_t *hash_digest, u32int *hashRet, int num_iter)
 {
   uint8_t hashed_nums[SHA256_LEN + 1], *mix_hash;
 
   bool allocDigest = false;
+  bool completed = false;
   if(!hash_digest)
   {
     hash_digest = alloca(DCRYPT_DIGEST_LENGTH);
@@ -158,41 +160,47 @@ void dcrypt(const uint8_t *data, size_t data_sz, uint8_t *hash_digest, u32int *h
   sha256_to_str(data, data_sz, hashed_nums, hash_digest);
 
   //mix the hashes up, magority of the time takes here
-  uint64 mix_hash_len = mix_hashed_nums(hashed_nums, data, data_sz, &mix_hash, hash_digest);
+  uint64 mix_hash_len = mix_hashed_nums(hashed_nums, data, data_sz, &mix_hash, hash_digest, num_iter, &completed);
 
   //apply the final hash to the output
-  sha256((const uint8_t*)mix_hash, mix_hash_len, hashRet);
+  if (completed)  sha256((const uint8_t*)mix_hash, mix_hash_len, hashRet);
 
   free(mix_hash);
 
   //sucess
-  return;
+  return completed;
 }
 
 int scanhash_dcrypt(int thr_id, uint32_t *pdata,
                     unsigned char *digest, const uint32_t *ptarget,
-                    uint32_t max_nonce, unsigned long *hashes_done)
+                    uint32_t max_nonce, unsigned long *hashes_done, int num_iter)
 {
   uint32_t block[20], hash[8];
   uint32_t nNonce = pdata[19] - 1;
   const uint32_t Htarg = ptarget[7]; //the last element in the target is the first 32 bits of the target
   int i;
-	
+  bool completed;
+  int missed = 0;	
   //copy the block (first 80 bytes of pdata) into block
   memcpy(block, pdata, 80);
-
+  
   do
   {
     //increment nNonce
     block[19] = ++nNonce;
 		
-    dcrypt((u8int*)block, 80, digest, hash);
+    completed = dcrypt((u8int*)block, 80, digest, hash, num_iter);
 
+    if (!completed)
+    {
+        missed += 1;
+        continue;
+    }
     //hash[7] <= Htarg just compares the first 32 bits of the hash with the target
     // full_test fully compares the entire hash with the entire target
     if(hash[7] <= Htarg && fulltest(hash, ptarget)) 
     {
-      *hashes_done = nNonce - pdata[19] + 1;
+      *hashes_done = nNonce - pdata[19] + 1 - missed;
       pdata[19] = block[19];
 
       //found a hash!
@@ -201,7 +209,7 @@ int scanhash_dcrypt(int thr_id, uint32_t *pdata,
 
   }while(nNonce < max_nonce && !work_restart[thr_id].restart);
 	
-  *hashes_done = nNonce - pdata[19] + 1;
+  *hashes_done = nNonce - pdata[19] + 1 - missed;
   pdata[19] = nNonce;
 
   //No luck yet

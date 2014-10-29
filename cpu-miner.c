@@ -145,7 +145,7 @@ int longpoll_thr_id = -1;
 int stratum_thr_id = -1;
 struct work_restart *work_restart = NULL;
 static struct stratum_ctx stratum;
-
+static int num_iter = 128;
 pthread_mutex_t applog_lock;
 static pthread_mutex_t stats_lock;
 
@@ -171,6 +171,7 @@ Options:\n\
                           dcrypt    Dcrypt (default)\n\
                           scrypt    scrypt(1024, 1, 1)\n\
                           sha256d   SHA-256d\n\
+  -i, --iter=NUM	specify number of iterations for Dcrypt (default = 128)\n\
   -o, --url=URL         URL of mining server\n\
   -O, --userpass=U:P    username:password pair for mining server\n\
   -u, --user=USERNAME   username for mining server\n\
@@ -211,7 +212,7 @@ static char const short_options[] =
 #ifdef HAVE_SYSLOG_H
   "S"
 #endif
-  "a:c:Dhp:Px:qr:R:s:t:T:o:u:O:V";
+  "a:c:Dhp:Px:qr:R:s:t:T:o:u:O:V:i:";
 
 static struct option const options[] = {
   { "algo", 1, NULL, 'a' },
@@ -235,6 +236,7 @@ static struct option const options[] = {
 #ifdef HAVE_SYSLOG_H
   { "syslog", 0, NULL, 'S' },
 #endif
+  { "iter", 128, NULL, 'i' },
   { "threads", 1, NULL, 't' },
   { "timeout", 1, NULL, 'T' },
   { "url", 1, NULL, 'o' },
@@ -804,7 +806,7 @@ static void *miner_thread(void *userdata)
       for(i = 0; i < 19; i++)
         work.data[i] = swab32(work.data[i]);
 
-      rc = scanhash_dcrypt(thr_id, work.data, dcryptDigest, work.target, max_nonce, &hashes_done);
+      rc = scanhash_dcrypt(thr_id, work.data, dcryptDigest, work.target, max_nonce, &hashes_done, num_iter);
 	  
       if(have_stratum)
       {
@@ -1110,6 +1112,10 @@ static void parse_arg (int key, char *arg)
   case 'p':
     free(rpc_pass);
     rpc_pass = strdup(arg);
+    break;
+  case 'i':
+    num_iter = atoi(arg);
+    printf("Number of iterations selected = %i\n", num_iter);
     break;
   case 'P':
     opt_protocol = true;
