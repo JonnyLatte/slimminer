@@ -25,15 +25,41 @@ char * byte_to_hex =
         "e0e1e2e3e4e5e6e7e8e9eaebecedeeef"
         "f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff";
 
-void digest_to_string(u8int *hash_digest, u8int *str)
+inline void digest_to_string(u8int *hash_digest, u8int *str)
 {
-  register int si = 0;
-  register int i = 0;
-  for(; i < SHA256_DIGEST_LENGTH; i++)
-  {
-    memcpy(str+si,byte_to_hex + hash_digest[i]*2,2);
-    si+=2;
-  }
+  memcpy(str+0 ,byte_to_hex + hash_digest[0]*2,2);
+  memcpy(str+2 ,byte_to_hex + hash_digest[1]*2,2);
+  memcpy(str+4 ,byte_to_hex + hash_digest[2]*2,2);
+  memcpy(str+6 ,byte_to_hex + hash_digest[3]*2,2);
+  memcpy(str+8 ,byte_to_hex + hash_digest[4]*2,2);
+  memcpy(str+10,byte_to_hex + hash_digest[5]*2,2);
+  memcpy(str+12,byte_to_hex + hash_digest[6]*2,2);
+  memcpy(str+14,byte_to_hex + hash_digest[7]*2,2);
+  memcpy(str+16,byte_to_hex + hash_digest[8]*2,2);
+  memcpy(str+18,byte_to_hex + hash_digest[9]*2,2);
+  memcpy(str+20,byte_to_hex + hash_digest[10]*2,2);
+  memcpy(str+22,byte_to_hex + hash_digest[11]*2,2);
+  memcpy(str+24,byte_to_hex + hash_digest[12]*2,2);
+  memcpy(str+26,byte_to_hex + hash_digest[13]*2,2);
+  memcpy(str+28,byte_to_hex + hash_digest[14]*2,2);
+  memcpy(str+30,byte_to_hex + hash_digest[15]*2,2);
+  memcpy(str+32,byte_to_hex + hash_digest[16]*2,2);
+  memcpy(str+34,byte_to_hex + hash_digest[17]*2,2);
+  memcpy(str+36,byte_to_hex + hash_digest[18]*2,2);
+  memcpy(str+38,byte_to_hex + hash_digest[19]*2,2);
+  memcpy(str+40,byte_to_hex + hash_digest[20]*2,2);
+  memcpy(str+42,byte_to_hex + hash_digest[21]*2,2);
+  memcpy(str+44,byte_to_hex + hash_digest[22]*2,2);
+  memcpy(str+46,byte_to_hex + hash_digest[23]*2,2);
+  memcpy(str+48,byte_to_hex + hash_digest[24]*2,2);
+  memcpy(str+50,byte_to_hex + hash_digest[25]*2,2);
+  memcpy(str+52,byte_to_hex + hash_digest[26]*2,2);
+  memcpy(str+54,byte_to_hex + hash_digest[27]*2,2);
+  memcpy(str+56,byte_to_hex + hash_digest[28]*2,2);
+  memcpy(str+58,byte_to_hex + hash_digest[29]*2,2);
+  memcpy(str+60,byte_to_hex + hash_digest[30]*2,2);
+  memcpy(str+62,byte_to_hex + hash_digest[31]*2,2);
+
   str[SHA256_LEN] = 0;
   return;
 }
