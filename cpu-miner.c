@@ -842,7 +842,8 @@ static void *miner_thread(void *userdata)
       applog(LOG_INFO, "thread %d: %lu hashes, %s khash/s", thr_id, hashes_done, s);
     }
 
-    if(opt_benchmark && thr_id == opt_n_threads - 1) 
+    //if(opt_benchmark && thr_id == opt_n_threads - 1) 
+	if(thr_id == opt_n_threads - 1)
     {
       double hashrate = 0.;
       for (i = 0; i < opt_n_threads && thr_hashrates[i]; i++)

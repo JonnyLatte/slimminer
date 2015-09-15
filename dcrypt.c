@@ -171,6 +171,74 @@ bool dcrypt(const uint8_t *data, size_t data_sz, uint8_t *hash_digest, u32int *h
   return completed;
 }
 
+
+inline void digest_to_skiplist(unsigned char *d, unsigned char *str)
+{
+	for (register int i = SHA256_DIGEST_LENGTH; i ; --i) {
+        *str++ = (*d & 0xf0) >> 4;
+        *str++ = (*d & 0x0f);
+        d++;
+    }   
+	*str = 0;
+    return;
+}
+
+bool dcrypt_fast(u8int *data, size_t data_sz,uint32_t*md)
+{
+	#define MAX_INC 16
+
+	unsigned char hash_buffer[SHA256_LEN*MAX_INC+SHA256_LEN*4+80+1];  
+
+	unsigned char		index_buffer[SHA256_LEN+1]; 
+	unsigned char 		*tmp_array = hash_buffer;     
+	unsigned int	    index = 0;
+	unsigned char		tmp_val;
+
+	SHA256_CTX	hash;
+	SHA256_Init(&hash);
+
+	digest_to_skiplist((u8int *)md,index_buffer);   
+
+	int steps = 0,index_test=index;
+	while(1)
+	{
+		index_test += index_buffer[index_test]+1;
+
+		if(index_test >= SHA256_LEN) return 0;
+		if(index_test == SHA256_LEN - 1) break;
+		steps++;
+	}
+	if(steps >= MAX_INC) return 0;/**/
+
+	memset(tmp_array, 0xff, SHA256_LEN);      //set the first hash length in the temp array to all 0xff'
+	memset(tmp_array + SHA256_LEN, 0x00, 2);  //set the last bytes to \000
+
+	int count = 0; 
+
+ 	do
+	{
+		index += index_buffer[index]+1;
+
+		if(index >= SHA256_LEN) return 0;
+	
+		tmp_val = hex_digits[index_buffer[index]];
+
+		tmp_array[SHA256_LEN] =  tmp_val; //set  end of tmp_array to tmp_val
+		sha256_to_str(tmp_array, SHA256_LEN + 1, tmp_array+SHA256_LEN,(u8int *)md);
+
+		count++;
+		tmp_array += SHA256_LEN;
+
+	}
+	while ((index != SHA256_LEN - 1) || (tmp_val != tmp_array[SHA256_LEN - 1] ));
+
+	SHA256_Update(&hash,hash_buffer+SHA256_LEN,SHA256_LEN*count);
+	SHA256_Update(&hash,data,data_sz);
+	SHA256_Final((u8int *)md, &hash);
+
+	return 1;
+}
+
 int scanhash_dcrypt(int thr_id, uint32_t *pdata,
                     unsigned char *digest, const uint32_t *ptarget,
                     uint32_t max_nonce, unsigned long *hashes_done, int num_iter)
@@ -183,25 +251,79 @@ int scanhash_dcrypt(int thr_id, uint32_t *pdata,
   int missed = 0;	
   //copy the block (first 80 bytes of pdata) into block
   memcpy(block, pdata, 80);
+
+  SHA256_CTX	halfstate,fullstate;
+  SHA256_Init(&halfstate);
+  SHA256_Update(&halfstate,&block,sizeof(uint32_t)*19);
   
   do
   {
     //increment nNonce
     block[19] = ++nNonce;
 		
-    completed = dcrypt((u8int*)block, 80, digest, hash, num_iter);
+    //completed = dcrypt((u8int*)block, 80, digest, hash, num_iter);
+
+	memcpy(&fullstate,&halfstate,sizeof(SHA256_CTX)); 
+	SHA256_Update(&fullstate,&block[19],sizeof(uint32_t));
+	SHA256_Final((u8int *)hash, &fullstate);
+	completed = dcrypt_fast((u8int*)block, 80,hash);/**/
 
     if (!completed)
     {
         missed += 1;
         continue;
     }
+
+	/*
+	// check
+
+	uint32_t hash2[8];
+
+	int c2 = dcrypt((u8int*)block, 80, digest, hash2, num_iter);
+
+	for(int i = 0; i < 8 ; i++)
+	{
+		if(hash[i] != hash2[i])
+		{
+			char s1[65],s2[65];
+			digest_to_string((u8int*)hash, s1);
+			digest_to_string((u8int*)hash2, s2);
+			printf("Fail!!!\n%s %d\n%s %d\n",s1,completed,s2,c2);
+			exit(0);
+		}
+	}/**/
+
+
     //hash[7] <= Htarg just compares the first 32 bits of the hash with the target
     // full_test fully compares the entire hash with the entire target
+
     if(hash[7] <= Htarg && fulltest(hash, ptarget)) 
     {
       *hashes_done = nNonce - pdata[19] + 1 - missed;
       pdata[19] = block[19];
+
+		char s[65];
+		digest_to_string((u8int*)hash, s);
+		printf("found:  %s\n",s);
+
+		// check
+
+		uint32_t hash2[8];
+
+		int c2 = dcrypt((u8int*)block, 80, digest, hash2, num_iter);
+
+		for(int i = 0; i < 8 ; i++)
+		{
+			if(hash[i] != hash2[i])
+			{
+				char s1[65],s2[65];
+				digest_to_string((u8int*)hash, s1);
+				digest_to_string((u8int*)hash2, s2);
+				printf("Error invalid hash found.\n%s %d\n%s %d\n",s1,completed,s2,c2);
+				exit(0);
+			}
+		}
+		printf("hash verified.\n");
 
       //found a hash!
       return 1;
@@ -215,6 +337,7 @@ int scanhash_dcrypt(int thr_id, uint32_t *pdata,
   //No luck yet
   return 0;
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////

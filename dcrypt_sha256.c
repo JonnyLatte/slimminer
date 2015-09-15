@@ -7,6 +7,21 @@
 
 #include "dcrypt_sha256.h"
 
+const char hex_digits[] = {'0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f'};
+
+inline void digest_to_string(u8int *d, u8int *str)
+{
+	for (register int i = SHA256_DIGEST_LENGTH; i ; --i) {
+        *str++ = hex_digits[(*d & 0xf0) >> 4];
+        *str++ = hex_digits[*d & 0x0f];
+        d++;
+    }
+    *str = 0;
+    return;
+}
+
+/*
+
 char * byte_to_hex =
         "000102030405060708090a0b0c0d0e0f"
         "101112131415161718191a1b1c1d1e1f"
@@ -63,6 +78,8 @@ inline void digest_to_string(u8int *hash_digest, u8int *str)
   str[SHA256_LEN] = 0;
   return;
 }
+
+/**/
 
 //static void digest_to_string(u8int *hash_digest, u8int *string)
 void old_digest_to_string(u8int *hash_digest, u8int *string)
