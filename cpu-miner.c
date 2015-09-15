@@ -842,18 +842,22 @@ static void *miner_thread(void *userdata)
       applog(LOG_INFO, "thread %d: %lu hashes, %s khash/s", thr_id, hashes_done, s);
     }
 
-    //if(opt_benchmark && thr_id == opt_n_threads - 1) 
-	if(thr_id == opt_n_threads - 1)
-    {
-      double hashrate = 0.;
-      for (i = 0; i < opt_n_threads && thr_hashrates[i]; i++)
-        hashrate += thr_hashrates[i];
-      if(i == opt_n_threads)
-      {
-        sprintf(s, hashrate >= 1e6 ? "%.0f" : "%.2f", 1e-3 * hashrate);
-        applog(LOG_INFO, "Total: %s khash/s", s);
-      }
-    }
+	//if( (opt_benchmark) && thr_id == opt_n_threads - 1) 
+	if(thr_id == opt_n_threads - 1) 
+	{
+	  int unproductive = 0;
+	  double hashrate = 0.;
+
+	  for (i = 0; i < opt_n_threads; i++)
+	  {
+		hashrate += thr_hashrates[i];
+		if(!thr_hashrates[i]) unproductive++;
+	  }
+
+	  sprintf(s, hashrate >= 1e6 ? "%.0f" : "%.2f", 1e-3 * hashrate);
+	  applog(LOG_INFO, "Idle Threads: %.f\% Total: %s khash/s ",((float)((unproductive))/(float)(opt_n_threads))*100.0f, s);
+	  
+	}
 
     /* if nonce found, submit work */
     if(rc && !opt_benchmark && !submit_work(mythr, &work))
