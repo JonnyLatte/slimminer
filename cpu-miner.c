@@ -722,10 +722,13 @@ static void *miner_thread(void *userdata)
   else if(opt_algo == ALGO_DCRYPT)
     dcryptDigest = dcrypt_buffer_alloc();
 
+  struct timeval tv_start, tv_end, diff;
+  gettimeofday(&tv_start, NULL);
+
   for(;;)
   {
     unsigned long hashes_done;
-    struct timeval tv_start, tv_end, diff;
+    
     int64_t max64;
     int rc;
 
@@ -786,7 +789,7 @@ static void *miner_thread(void *userdata)
       max_nonce = work.data[19] + max64;
 		
     hashes_done = 0;
-    gettimeofday(&tv_start, NULL);
+   
 
     /* scan nonces for a proof-of-work hash */
     switch (opt_algo)
@@ -824,6 +827,8 @@ static void *miner_thread(void *userdata)
     /* record scanhash elapsed time */
     gettimeofday(&tv_end, NULL);
     timeval_subtract(&diff, &tv_end, &tv_start);
+    gettimeofday(&tv_start, NULL);
+
     if(diff.tv_usec || diff.tv_sec) 
     {
       pthread_mutex_lock(&stats_lock);
