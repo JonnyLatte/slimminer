@@ -125,6 +125,8 @@ bool use_syslog = false;
 static bool opt_background = false;
 static bool opt_quiet = false;
 static bool opt_hashrate = false;
+static unsigned int opt_hashtable = 0;
+extern unsigned int max_hashtable;
 static int opt_retries = -1;
 static int opt_fail_pause = 30;
 int opt_timeout = 270;
@@ -190,6 +192,8 @@ Options:\n\
       --no-longpoll     disable X-Long-Polling support\n\
       --no-stratum      disable X-Stratum support\n\
   -q, --quiet           disable per-thread hashmeter output\n\
+  -H, --hashrate        enable total hashmeter output when --quiet chosen\n\
+      --hashtable=N     pre-calculate dcrypt internal hashes N deep\n\
   -D, --debug           enable debug output\n\
   -P, --protocol-dump   verbose dump of protocol-level activities\n"
 #ifdef HAVE_SYSLOG_H
@@ -233,6 +237,7 @@ static struct option const options[] = {
   { "proxy", 1, NULL, 'x' },
   { "quiet", 0, NULL, 'q' },
   { "hashrate", 0, NULL, 'H' },
+  { "hashtable", 1, NULL, 1008 },
   { "retries", 1, NULL, 'r' },
   { "retry-pause", 1, NULL, 'R' },
   { "scantime", 1, NULL, 's' },
@@ -1132,6 +1137,12 @@ static void parse_arg (int key, char *arg)
     break;
   case 'H':
     opt_hashrate = true;
+    break;
+  case 1008:
+    opt_hashtable = atoi(arg);
+	if(opt_hashtable > max_hashtable) opt_hashtable = max_hashtable;
+	printf("Using Dcrypt hashtable. Depth: %i\n", opt_hashtable);
+	init_dcrypt_hashtables(opt_hashtable);
     break;
   case 'D':
     opt_debug = true;

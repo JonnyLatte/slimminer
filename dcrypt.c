@@ -12,6 +12,191 @@
 //the base size for malloc/realloc will be 1KB
 #define REALLOC_BASE_SZ   (1024)
 
+unsigned int max_hashtable =  5;
+
+const size_t item_size = sizeof(uint8_t[SHA256_LEN + 1]);
+const size_t table_size = sizeof(uint8_t[SHA256_LEN + 1])*16;
+const size_t ctx_table_size = sizeof(SHA256_CTX)*16;
+
+uint8_t         * tmp_array_1 = 0;
+SHA256_CTX		*      hash_1 = 0;
+uint8_t         * tmp_array_2 = 0;
+SHA256_CTX		*      hash_2 = 0;
+uint8_t         * tmp_array_3 = 0;
+SHA256_CTX		*      hash_3 = 0;
+uint8_t         * tmp_array_4 = 0;
+SHA256_CTX		*      hash_4 = 0;
+uint8_t         * tmp_array_5 = 0;
+SHA256_CTX		*      hash_5 = 0;
+
+void init_hashtable_memory(unsigned int depth)
+{	
+	printf("Allocating memory for dcrypt bufferes.\n");
+
+	switch (depth)
+	{
+	case 5:
+		if(!(tmp_array_5 = (uint8_t*)malloc(table_size*16*16*16*16)))
+		{
+			printf("Failed to allocate memory 3\n");
+			exit(0);
+		}
+		if(!(hash_5 = (SHA256_CTX*)malloc(ctx_table_size*16*16*16*16)))
+		{
+			free(tmp_array_5);
+			tmp_array_5 = 0;
+			printf("Failed to allocate ctx memory 3\n");
+			exit(0);
+		}
+	case 4:
+		if(!(tmp_array_4 = (uint8_t*)malloc(table_size*16*16*16)))
+		{
+			printf("Failed to allocate memory 3\n");
+			exit(0);
+		}
+		if(!(hash_4 = (SHA256_CTX*)malloc(ctx_table_size*16*16*16)))
+		{
+			free(tmp_array_4);
+			tmp_array_4 = 0;
+			printf("Failed to allocate ctx memory 3\n");
+			exit(0);
+		}
+	case 3:
+		if(!(tmp_array_3 = (uint8_t*)malloc(table_size*16*16)))
+		{
+			printf("Failed to allocate memory 3\n");
+			exit(0);
+		}
+		if(!(hash_3 = (SHA256_CTX*)malloc(ctx_table_size*16*16)))
+		{
+			free(tmp_array_3);
+			tmp_array_3 = 0;
+			printf("Failed to allocate ctx memory 3\n");
+			exit(0);
+		}
+	case 2:
+		if(!(tmp_array_2 = (uint8_t*)malloc(table_size*16)))
+		{
+			printf("Failed to allocate memory 2\n");
+			exit(0);
+		}
+		if(!(hash_2 = (SHA256_CTX*)malloc(ctx_table_size*16)))
+		{
+			free(tmp_array_2);
+			tmp_array_2 = 0;
+			printf("Failed to allocate ctx memory 2\n");
+			exit(0);
+		}
+	case 1:
+		if(!(tmp_array_1 = (uint8_t*)malloc(table_size)))
+		{
+			printf("Failed to allocate memory 1\n");
+			exit(0);
+		}
+		if(!(hash_1 = (SHA256_CTX*)malloc(ctx_table_size)))
+		{
+			free(tmp_array_1);
+			tmp_array_1 = 0;
+			printf("Failed to allocate ctx memory 1\n");
+			exit(0);
+		}
+	}
+}
+
+void init_hashtable_values()
+{
+	printf("Pre-computing dcrypt internal hash values.\n");
+
+	SHA256_CTX	hash;
+	SHA256_Init(&hash);
+	unsigned char md[32];
+
+	if(tmp_array_1 && hash_1)
+	{
+		for(int x1 = 0; x1 < 16; x1++)
+		{
+			unsigned int offset_1 = x1;
+			uint8_t * ta1 = &tmp_array_1[item_size*x1];
+			memset(ta1, 0xff, SHA256_LEN); 
+			ta1[SHA256_LEN] = hex_digits[x1];
+			sha256_to_str(ta1, SHA256_LEN + 1, ta1,md);
+
+			SHA256_CTX	*current_hash = &hash_1[x1];
+			memcpy(current_hash,&hash,sizeof(SHA256_CTX));
+			SHA256_Update(current_hash,ta1,SHA256_LEN);
+
+			if(tmp_array_2 && hash_2)
+			{
+				for(int x2 = 0; x2 < 16; x2++)
+				{
+					unsigned int offset_2 = offset_1*16+x2;
+					uint8_t * ta2 = &tmp_array_2[item_size*offset_2];
+					memcpy(ta2,ta1,SHA256_LEN); 
+					ta2[SHA256_LEN] = hex_digits[x2];
+					sha256_to_str(ta2, SHA256_LEN + 1, ta2,md);
+
+					memcpy(&hash_2[offset_2],&hash_1[offset_1],sizeof(SHA256_CTX));
+					SHA256_Update(&hash_2[offset_2],ta2,SHA256_LEN);
+
+					if(tmp_array_3 && hash_3)
+					{
+						for(int x3 = 0; x3 < 16; x3++)
+						{
+							unsigned int offset_3 = offset_2*16+x3;
+							uint8_t * ta3 = &tmp_array_3[item_size*offset_3];
+							memcpy(ta3,ta2,SHA256_LEN); 
+							ta3[SHA256_LEN] = hex_digits[x3];
+							sha256_to_str(ta3, SHA256_LEN + 1, ta3,md);
+
+							memcpy(&hash_3[offset_3],&hash_2[offset_2],sizeof(SHA256_CTX));
+							SHA256_Update(&hash_3[offset_3],ta3,SHA256_LEN);
+
+							if(tmp_array_4 && hash_4)
+							{
+								for(int x4 = 0; x4 < 16; x4++)
+								{
+									unsigned int offset_4 = offset_3*16+x4;
+									uint8_t * ta4 = &tmp_array_4[item_size*offset_4];
+									memcpy(ta4,ta3,SHA256_LEN); 
+									ta4[SHA256_LEN] = hex_digits[x4];
+									sha256_to_str(ta4, SHA256_LEN + 1, ta4,md);
+
+									memcpy(&hash_4[offset_4],&hash_3[offset_3],sizeof(SHA256_CTX));
+									SHA256_Update(&hash_4[offset_4],ta4,SHA256_LEN);
+
+									if(tmp_array_5 && hash_5)
+									{
+										for(int x5 = 0; x5 < 16; x5++)
+										{
+											unsigned int offset_5 = offset_4*16+x5;
+											uint8_t * ta5 = &tmp_array_5[item_size*offset_5];
+											memcpy(ta5,ta4,SHA256_LEN); 
+											ta5[SHA256_LEN] = hex_digits[x5];
+											sha256_to_str(ta5, SHA256_LEN + 1, ta5,md);
+
+											memcpy(&hash_5[offset_5],&hash_4[offset_4],sizeof(SHA256_CTX));
+											SHA256_Update(&hash_5[offset_5],ta5,SHA256_LEN);
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	printf("Ready to rumble.\n");
+}
+
+void init_dcrypt_hashtables(unsigned int depth)
+{
+	if(!depth) return;
+
+	init_hashtable_memory(depth);	
+	init_hashtable_values();
+}
+
 typedef struct
 {
   uint8_t *array;
@@ -215,6 +400,60 @@ bool dcrypt_fast(u8int *data, size_t data_sz,uint32_t*md)
 
 	int count = 0; 
 
+	if(tmp_array_1 && hash_1) // copy pre-calulated internal hashes
+	{
+		index += index_buffer[index]+1;
+		unsigned int offset_1 = index_buffer[index];
+
+		if(tmp_array_2 && hash_2) // depth 2
+		{
+			index += index_buffer[index]+1;
+			unsigned int offset_2 = offset_1*16+index_buffer[index];
+
+			if(tmp_array_3 && hash_3) // depth 3
+			{
+				index += index_buffer[index]+1;
+				unsigned int offset_3 = offset_2*16+index_buffer[index];
+
+				if(tmp_array_4 && hash_4) // depth 4
+				{
+					index += index_buffer[index]+1;
+					unsigned int offset_4 = offset_3*16+index_buffer[index];
+
+					if(tmp_array_5 && hash_5) // depth 5
+					{
+						index += index_buffer[index]+1;
+						unsigned int offset_5 = offset_4*16+index_buffer[index];
+
+						// depth 6?
+
+						memcpy(tmp_array,&tmp_array_5[item_size*offset_5],SHA256_LEN); 
+						memcpy(&hash,&hash_5[offset_5],sizeof(SHA256_CTX));
+					}
+					else
+					{
+						memcpy(tmp_array,&tmp_array_4[item_size*offset_4],SHA256_LEN); 
+						memcpy(&hash,&hash_4[offset_4],sizeof(SHA256_CTX));
+					}
+				}
+				else
+				{
+					memcpy(tmp_array,&tmp_array_3[item_size*offset_3],SHA256_LEN); 
+					memcpy(&hash,&hash_3[offset_3],sizeof(SHA256_CTX));
+				}
+			}
+			else
+			{
+				memcpy(tmp_array,&tmp_array_2[item_size*offset_2],SHA256_LEN); 
+				memcpy(&hash,&hash_2[offset_2],sizeof(SHA256_CTX));
+			}
+		}
+		else {
+			memcpy(tmp_array,&tmp_array_1[item_size*offset_1],SHA256_LEN); 
+			memcpy(&hash,&hash_1[offset_1],sizeof(SHA256_CTX));
+		}
+	}
+
  	do
 	{
 		index += index_buffer[index]+1;
@@ -275,7 +514,7 @@ int scanhash_dcrypt(int thr_id, uint32_t *pdata,
     }
 
 	/*
-	// check
+	// check optimized hash against previous hash function
 
 	uint32_t hash2[8];
 

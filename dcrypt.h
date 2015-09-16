@@ -18,5 +18,6 @@ int scanhash_dcrypt(int thr_id, uint32_t *pdata,
 
 u8int *dcrypt_buffer_alloc();
 
+void init_dcrypt_hashtables();
 
 #endif
