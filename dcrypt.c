@@ -304,7 +304,7 @@ int scanhash_dcrypt(int thr_id, uint32_t *pdata,
 
 		char s[65];
 		digest_to_string((u8int*)hash, s);
-		printf("found:  %s\n",s);
+	    applog(LOG_INFO, "hash found: %s", s);
 
 		// check
 
@@ -323,7 +323,7 @@ int scanhash_dcrypt(int thr_id, uint32_t *pdata,
 				exit(0);
 			}
 		}
-		printf("hash verified.\n");
+		//printf("hash verified.\n");
 
       //found a hash!
       return 1;

@@ -124,6 +124,7 @@ static bool submit_old = false;
 bool use_syslog = false;
 static bool opt_background = false;
 static bool opt_quiet = false;
+static bool opt_hashrate = false;
 static int opt_retries = -1;
 static int opt_fail_pause = 30;
 int opt_timeout = 270;
@@ -152,6 +153,7 @@ static pthread_mutex_t stats_lock;
 static unsigned long accepted_count = 0L;
 static unsigned long rejected_count = 0L;
 static double *thr_hashrates;
+static unsigned long * thr_hashes_done;
 
 #ifdef HAVE_GETOPT_LONG
 #include <getopt.h>
@@ -230,6 +232,7 @@ static struct option const options[] = {
   { "protocol-dump", 0, NULL, 'P' },
   { "proxy", 1, NULL, 'x' },
   { "quiet", 0, NULL, 'q' },
+  { "hashrate", 0, NULL, 'H' },
   { "retries", 1, NULL, 'r' },
   { "retry-pause", 1, NULL, 'R' },
   { "scantime", 1, NULL, 's' },
@@ -824,39 +827,50 @@ static void *miner_thread(void *userdata)
       goto out;
     }
 
+	pthread_mutex_lock(&stats_lock);
+	thr_hashes_done[thr_id] +=  hashes_done;
+	pthread_mutex_unlock(&stats_lock);
+
     /* record scanhash elapsed time */
     gettimeofday(&tv_end, NULL);
     timeval_subtract(&diff, &tv_end, &tv_start);
-    gettimeofday(&tv_start, NULL);
 
-    if(diff.tv_usec || diff.tv_sec) 
-    {
-      pthread_mutex_lock(&stats_lock);
-      thr_hashrates[thr_id] = hashes_done / (diff.tv_sec + 1e-6 * diff.tv_usec);
-      pthread_mutex_unlock(&stats_lock);
-    }
+	double time_elapsed = (diff.tv_sec + 1e-6 * diff.tv_usec);
 
-    if(!opt_quiet) 
-    {
-      sprintf(s, thr_hashrates[thr_id] >= 1e6 ? "%.0f" : "%.2f", 1e-3 * thr_hashrates[thr_id]);
-      applog(LOG_INFO, "thread %d: %lu hashes, %s khash/s", thr_id, hashes_done, s);
-    }
-
-	//if( (opt_benchmark) && thr_id == opt_n_threads - 1) 
-	if(thr_id == opt_n_threads - 1) 
+	if(time_elapsed > 2 && thr_id == opt_n_threads - 1) 
 	{
-	  int unproductive = 0;
+      gettimeofday(&tv_start, NULL);
+
 	  double hashrate = 0.;
+	  double total_hashrate;
+	  double time_elapsed = (diff.tv_sec + 1e-6 * diff.tv_usec);
+	  unsigned long total_hashes = 0;
+	
 
-	  for (i = 0; i < opt_n_threads; i++)
+	  pthread_mutex_lock(&stats_lock);
+	  for (i = 1; i < opt_n_threads; i++)
 	  {
-		hashrate += thr_hashrates[i];
-		if(!thr_hashrates[i]) unproductive++;
-	  }
+ 		total_hashes += thr_hashes_done[i];
+		thr_hashrates[i] = thr_hashes_done[i] / time_elapsed;		
 
-	  sprintf(s, hashrate >= 1e6 ? "%.0f" : "%.2f", 1e-3 * hashrate);
-	  applog(LOG_INFO, "Idle Threads: %.f\% Total: %s khash/s ",((float)((unproductive))/(float)(opt_n_threads))*100.0f, s);
-	  
+		if(!opt_quiet) 
+		{
+		  sprintf(s, thr_hashrates[i] >= 1e6 ? "%.0f" : "%.2f", 1e-3 * thr_hashrates[i]);
+		  applog(LOG_INFO, "thread %d: %lu hashes, %s khash/s", i, thr_hashes_done[i], s);
+		}
+		thr_hashes_done[i] = 0;
+
+		hashrate += thr_hashrates[i];
+	  }
+	  pthread_mutex_unlock(&stats_lock);
+
+	  total_hashrate = total_hashes / time_elapsed;
+
+	  if(opt_hashrate || !opt_quiet)
+	  {
+	  	sprintf(s, total_hashrate >= 1e6 ? "%.0f" : "%.2f", 1e-3 * total_hashrate);
+	  	applog(LOG_INFO, "Accepted: %lu/%lu, Total Hashrate: %s khash/s ",accepted_count,accepted_count + rejected_count, s);
+	  }
 	}
 
     /* if nonce found, submit work */
@@ -1115,6 +1129,9 @@ static void parse_arg (int key, char *arg)
   }
   case 'q':
     opt_quiet = true;
+    break;
+  case 'H':
+    opt_hashrate = true;
     break;
   case 'D':
     opt_debug = true;
@@ -1424,6 +1441,12 @@ int main(int argc, char *argv[])
   thr_hashrates = (double *) calloc(opt_n_threads, sizeof(double));
   if (!thr_hashrates)
     return 1;
+
+  thr_hashes_done = (unsigned long*)calloc(opt_n_threads, sizeof(unsigned long));
+  if (!thr_hashes_done)
+    return 1;
+
+  memset(thr_hashes_done,0,sizeof(sizeof(unsigned long)*opt_n_threads));
 
   /* init workio thread info */
   work_thr_id = opt_n_threads;
