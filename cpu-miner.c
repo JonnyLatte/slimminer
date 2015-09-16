@@ -848,7 +848,7 @@ static void *miner_thread(void *userdata)
 	
 
 	  pthread_mutex_lock(&stats_lock);
-	  for (i = 1; i < opt_n_threads; i++)
+	  for (i = 0; i < opt_n_threads; i++)
 	  {
  		total_hashes += thr_hashes_done[i];
 		thr_hashrates[i] = thr_hashes_done[i] / time_elapsed;		
