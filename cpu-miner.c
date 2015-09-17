@@ -1532,6 +1532,8 @@ int main(int argc, char *argv[])
   pthread_join(thr_info[work_thr_id].pth, NULL);
 
   applog(LOG_INFO, "workio thread dead, exiting.");
+ 
+  cleanup_hashtable_memory();
 
   return 0;
 }

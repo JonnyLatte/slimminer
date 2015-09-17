@@ -29,6 +29,22 @@ SHA256_CTX		*      hash_4 = 0;
 uint8_t         * tmp_array_5 = 0;
 SHA256_CTX		*      hash_5 = 0;
 
+void cleanup_hashtable_memory()
+{
+	#define SAFE_FREE(X) if(X) free(X); X = 0;
+
+	SAFE_FREE(tmp_array_1)
+	SAFE_FREE(hash_1)
+	SAFE_FREE(tmp_array_2)
+	SAFE_FREE(hash_2)
+	SAFE_FREE(tmp_array_3)
+	SAFE_FREE(hash_3)
+	SAFE_FREE(tmp_array_4)
+	SAFE_FREE(hash_4)
+	SAFE_FREE(tmp_array_5)
+	SAFE_FREE(hash_5)
+}
+
 void init_hashtable_memory(unsigned int depth)
 {	
 	printf("Allocating memory for dcrypt bufferes.\n");
@@ -39,66 +55,76 @@ void init_hashtable_memory(unsigned int depth)
 		if(!(tmp_array_5 = (uint8_t*)malloc(table_size*16*16*16*16)))
 		{
 			printf("Failed to allocate memory 3\n");
-			exit(0);
+		    cleanup_hashtable_memory();
+			return;
 		}
 		if(!(hash_5 = (SHA256_CTX*)malloc(ctx_table_size*16*16*16*16)))
 		{
 			free(tmp_array_5);
 			tmp_array_5 = 0;
 			printf("Failed to allocate ctx memory 3\n");
-			exit(0);
+			cleanup_hashtable_memory();
+			return;
 		}
 	case 4:
 		if(!(tmp_array_4 = (uint8_t*)malloc(table_size*16*16*16)))
 		{
 			printf("Failed to allocate memory 3\n");
-			exit(0);
+			cleanup_hashtable_memory();
+			return;
 		}
 		if(!(hash_4 = (SHA256_CTX*)malloc(ctx_table_size*16*16*16)))
 		{
 			free(tmp_array_4);
 			tmp_array_4 = 0;
 			printf("Failed to allocate ctx memory 3\n");
-			exit(0);
+			cleanup_hashtable_memory();
+			return;
 		}
 	case 3:
 		if(!(tmp_array_3 = (uint8_t*)malloc(table_size*16*16)))
 		{
 			printf("Failed to allocate memory 3\n");
-			exit(0);
+			cleanup_hashtable_memory();
+			return;
 		}
 		if(!(hash_3 = (SHA256_CTX*)malloc(ctx_table_size*16*16)))
 		{
 			free(tmp_array_3);
 			tmp_array_3 = 0;
 			printf("Failed to allocate ctx memory 3\n");
-			exit(0);
+			cleanup_hashtable_memory();
+			return;
 		}
 	case 2:
 		if(!(tmp_array_2 = (uint8_t*)malloc(table_size*16)))
 		{
 			printf("Failed to allocate memory 2\n");
-			exit(0);
+			cleanup_hashtable_memory();
+			return;
 		}
 		if(!(hash_2 = (SHA256_CTX*)malloc(ctx_table_size*16)))
 		{
 			free(tmp_array_2);
 			tmp_array_2 = 0;
 			printf("Failed to allocate ctx memory 2\n");
-			exit(0);
+			cleanup_hashtable_memory();
+			return;
 		}
 	case 1:
 		if(!(tmp_array_1 = (uint8_t*)malloc(table_size)))
 		{
 			printf("Failed to allocate memory 1\n");
-			exit(0);
+			cleanup_hashtable_memory();
+			return;
 		}
 		if(!(hash_1 = (SHA256_CTX*)malloc(ctx_table_size)))
 		{
 			free(tmp_array_1);
 			tmp_array_1 = 0;
 			printf("Failed to allocate ctx memory 1\n");
-			exit(0);
+			cleanup_hashtable_memory();
+			return;
 		}
 	}
 }
