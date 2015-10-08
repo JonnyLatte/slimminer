@@ -155,6 +155,7 @@ static pthread_mutex_t stats_lock;
 static unsigned long accepted_count = 0L;
 static unsigned long rejected_count = 0L;
 static double *thr_hashrates;
+static double *thr_effective_hashrates;
 static unsigned long * thr_hashes_done;
 static unsigned long * thr_hashes_skipped;
 
@@ -324,11 +325,12 @@ static void share_result(int result, const char *reason)
   int i;
 
   hashrate = 0.;
+
   pthread_mutex_lock(&stats_lock);
   for (i = 0; i < opt_n_threads; i++)
-    hashrate += thr_hashrates[i];
+    hashrate += thr_effective_hashrates[i];
   result ? accepted_count++ : rejected_count++;
-  pthread_mutex_unlock(&stats_lock);
+  pthread_mutex_unlock(&stats_lock);/**/
 	
   sprintf(s, hashrate >= 1e6 ? "%.0f" : "%.2f", 1e-3 * hashrate);
   applog(LOG_INFO, "accepted: %lu/%lu (%.2f%%), %s khash/s %s",
@@ -859,16 +861,22 @@ static void *miner_thread(void *userdata)
 	  for (i = 0; i < opt_n_threads; i++)
 	  {
  		total_hashes += thr_hashes_done[i];
-		thr_hashrates[i] = thr_hashes_done[i] / time_elapsed;		
+		thr_effective_hashrates[i] = thr_hashes_done[i] / time_elapsed;		
+		// weighted average for the hashrate so that hashrate does not fluctuate wildly resulting in more stable work flow:
+		thr_hashrates[i] = ((thr_hashes_done[i] + thr_hashes_skipped[i]) / time_elapsed + thr_hashrates[i]*9)/10; 
 
 		if(!opt_quiet) 
 		{
-		  sprintf(s, thr_hashrates[i] >= 1e6 ? "%.0f" : "%.2f", 1e-3 * thr_hashrates[i]);
+		  sprintf(s, thr_effective_hashrates[i] >= 1e6 ? "%.0f" : "%.2f", 1e-3 * thr_effective_hashrates[i]);
 		  applog(LOG_INFO, "thread %d: %lu hashes, %s khash/s", i, thr_hashes_done[i], s);
 		}
 
-		hashrate += thr_hashrates[i];
+		thr_hashes_done[i] = 0;
+		thr_hashes_skipped[i] = 0;
+
+		hashrate += thr_effective_hashrates[i];
 	  }
+
 	  pthread_mutex_unlock(&stats_lock);
 
 	  total_hashrate = total_hashes / time_elapsed;
@@ -878,18 +886,6 @@ static void *miner_thread(void *userdata)
 	  	sprintf(s, total_hashrate >= 1e6 ? "%.0f" : "%.2f", 1e-3 * total_hashrate);
 	  	applog(LOG_INFO, "Accepted: %lu/%lu, Total Hashrate: %s khash/s ",accepted_count,accepted_count + rejected_count, s);
 	  }
-
-	  // recalculate hashrates including skipped hashes so that threads receive work 
-	  // according to how many nonce values they pass over rather than just how many they fully hash
-	  for (i = 0; i < opt_n_threads; i++)
-	  {
- 		total_hashes += thr_hashes_done[i] + thr_hashes_skipped[i];
-		thr_hashrates[i] = (thr_hashes_done[i] + thr_hashes_skipped[i]) / time_elapsed;		
-
-		thr_hashes_done[i] = 0;
-		thr_hashes_skipped[i] = 0;
-	  }
-
 	}
 
     /* if nonce found, submit work */
@@ -1465,6 +1461,10 @@ int main(int argc, char *argv[])
 	
   thr_hashrates = (double *) calloc(opt_n_threads, sizeof(double));
   if (!thr_hashrates)
+    return 1;
+
+  thr_effective_hashrates = (double *) calloc(opt_n_threads, sizeof(double));
+  if (!thr_effective_hashrates)
     return 1;
 
   thr_hashes_done = (unsigned long*)calloc(opt_n_threads, sizeof(unsigned long));
