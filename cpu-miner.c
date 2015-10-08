@@ -156,6 +156,7 @@ static unsigned long accepted_count = 0L;
 static unsigned long rejected_count = 0L;
 static double *thr_hashrates;
 static unsigned long * thr_hashes_done;
+static unsigned long * thr_hashes_skipped;
 
 #ifdef HAVE_GETOPT_LONG
 #include <getopt.h>
@@ -735,7 +736,7 @@ static void *miner_thread(void *userdata)
 
   for(;;)
   {
-    unsigned long hashes_done;
+    unsigned long hashes_done,hashes_skipped;
     
     int64_t max64;
     int rc;
@@ -797,6 +798,7 @@ static void *miner_thread(void *userdata)
       max_nonce = work.data[19] + max64;
 		
     hashes_done = 0;
+	hashes_skipped = 0;
    
 
     /* scan nonces for a proof-of-work hash */
@@ -817,7 +819,7 @@ static void *miner_thread(void *userdata)
       for(i = 0; i < 19; i++)
         work.data[i] = swab32(work.data[i]);
 
-      rc = scanhash_dcrypt(thr_id, work.data, dcryptDigest, work.target, max_nonce, &hashes_done, num_iter);
+      rc = scanhash_dcrypt(thr_id, work.data, dcryptDigest, work.target, max_nonce, &hashes_done, num_iter,&hashes_skipped);
 	  
       if(have_stratum)
       {
@@ -834,6 +836,7 @@ static void *miner_thread(void *userdata)
 
 	pthread_mutex_lock(&stats_lock);
 	thr_hashes_done[thr_id] +=  hashes_done;
+	thr_hashes_skipped[thr_id] += hashes_skipped;
 	pthread_mutex_unlock(&stats_lock);
 
     /* record scanhash elapsed time */
@@ -863,7 +866,6 @@ static void *miner_thread(void *userdata)
 		  sprintf(s, thr_hashrates[i] >= 1e6 ? "%.0f" : "%.2f", 1e-3 * thr_hashrates[i]);
 		  applog(LOG_INFO, "thread %d: %lu hashes, %s khash/s", i, thr_hashes_done[i], s);
 		}
-		thr_hashes_done[i] = 0;
 
 		hashrate += thr_hashrates[i];
 	  }
@@ -876,6 +878,18 @@ static void *miner_thread(void *userdata)
 	  	sprintf(s, total_hashrate >= 1e6 ? "%.0f" : "%.2f", 1e-3 * total_hashrate);
 	  	applog(LOG_INFO, "Accepted: %lu/%lu, Total Hashrate: %s khash/s ",accepted_count,accepted_count + rejected_count, s);
 	  }
+
+	  // recalculate hashrates including skipped hashes so that threads receive work 
+	  // according to how many nonce values they pass over rather than just how many they fully hash
+	  for (i = 0; i < opt_n_threads; i++)
+	  {
+ 		total_hashes += thr_hashes_done[i] + thr_hashes_skipped[i];
+		thr_hashrates[i] = (thr_hashes_done[i] + thr_hashes_skipped[i]) / time_elapsed;		
+
+		thr_hashes_done[i] = 0;
+		thr_hashes_skipped[i] = 0;
+	  }
+
 	}
 
     /* if nonce found, submit work */
@@ -1457,7 +1471,9 @@ int main(int argc, char *argv[])
   if (!thr_hashes_done)
     return 1;
 
-  memset(thr_hashes_done,0,sizeof(sizeof(unsigned long)*opt_n_threads));
+  thr_hashes_skipped = (unsigned long*)calloc(opt_n_threads, sizeof(unsigned long));
+  if (!thr_hashes_skipped)
+    return 1;
 
   /* init workio thread info */
   work_thr_id = opt_n_threads;

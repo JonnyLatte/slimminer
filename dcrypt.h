@@ -14,7 +14,7 @@ bool dcrypt(const uint8_t *data, size_t data_sz, uint8_t *hash_digest, u32int *h
 
 int scanhash_dcrypt(int thr_id, uint32_t *pdata,
                     unsigned char *digest, const uint32_t *ptarget,
-                    uint32_t max_nonce, unsigned long *hashes_done, int num_iter);
+                    uint32_t max_nonce, unsigned long *hashes_done, int num_iter,unsigned long *hashes_skipped);
 
 u8int *dcrypt_buffer_alloc();
 

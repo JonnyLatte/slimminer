@@ -506,14 +506,14 @@ bool dcrypt_fast(u8int *data, size_t data_sz,uint32_t*md)
 
 int scanhash_dcrypt(int thr_id, uint32_t *pdata,
                     unsigned char *digest, const uint32_t *ptarget,
-                    uint32_t max_nonce, unsigned long *hashes_done, int num_iter)
+                    uint32_t max_nonce, unsigned long *hashes_done, int num_iter,unsigned long *hashes_skipped)
 {
   uint32_t block[20], hash[8];
   uint32_t nNonce = pdata[19] - 1;
   const uint32_t Htarg = ptarget[7]; //the last element in the target is the first 32 bits of the target
   int i;
   bool completed;
-  int missed = 0;	
+  *hashes_skipped = 0;	
   //copy the block (first 80 bytes of pdata) into block
   memcpy(block, pdata, 80);
 
@@ -535,7 +535,7 @@ int scanhash_dcrypt(int thr_id, uint32_t *pdata,
 
     if (!completed)
     {
-        missed += 1;
+        *hashes_skipped += 1;
         continue;
     }
 
@@ -564,7 +564,7 @@ int scanhash_dcrypt(int thr_id, uint32_t *pdata,
 
     if(hash[7] <= Htarg && fulltest(hash, ptarget)) 
     {
-      *hashes_done = nNonce - pdata[19] + 1 - missed;
+      *hashes_done = nNonce - pdata[19] + 1 - *hashes_skipped;
       pdata[19] = block[19];
 
 		char s[65];
@@ -596,7 +596,7 @@ int scanhash_dcrypt(int thr_id, uint32_t *pdata,
 
   }while(nNonce < max_nonce && !work_restart[thr_id].restart);
 	
-  *hashes_done = nNonce - pdata[19] + 1 - missed;
+  *hashes_done = nNonce - pdata[19] + 1 - *hashes_skipped;
   pdata[19] = nNonce;
 
   //No luck yet
