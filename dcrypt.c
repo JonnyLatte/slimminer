@@ -12,7 +12,7 @@
 //the base size for malloc/realloc will be 1KB
 #define REALLOC_BASE_SZ   (1024)
 
-unsigned int max_hashtable =  5;
+unsigned int max_hashtable =  6;
 
 const size_t item_size = sizeof(uint8_t[SHA256_LEN + 1]);
 const size_t table_size = sizeof(uint8_t[SHA256_LEN + 1])*16;
@@ -28,6 +28,8 @@ uint8_t         * tmp_array_4 = 0;
 SHA256_CTX		*      hash_4 = 0;
 uint8_t         * tmp_array_5 = 0;
 SHA256_CTX		*      hash_5 = 0;
+uint8_t         * tmp_array_6 = 0;
+SHA256_CTX		*      hash_6 = 0;
 
 void cleanup_hashtable_memory()
 {
@@ -43,6 +45,8 @@ void cleanup_hashtable_memory()
 	SAFE_FREE(hash_4)
 	SAFE_FREE(tmp_array_5)
 	SAFE_FREE(hash_5)
+	SAFE_FREE(tmp_array_6)
+	SAFE_FREE(hash_6)
 }
 
 void init_hashtable_memory(unsigned int depth)
@@ -51,6 +55,21 @@ void init_hashtable_memory(unsigned int depth)
 
 	switch (depth)
 	{
+	case 6:
+		if(!(tmp_array_6 = (uint8_t*)malloc(table_size*16*16*16*16*16)))
+		{
+			printf("Failed to allocate memory 3\n");
+		    cleanup_hashtable_memory();
+			return;
+		}
+		if(!(hash_6 = (SHA256_CTX*)malloc(ctx_table_size*16*16*16*16*16)))
+		{
+			free(tmp_array_6);
+			tmp_array_6 = 0;
+			printf("Failed to allocate ctx memory 3\n");
+			cleanup_hashtable_memory();
+			return;
+		}
 	case 5:
 		if(!(tmp_array_5 = (uint8_t*)malloc(table_size*16*16*16*16)))
 		{
@@ -202,6 +221,20 @@ void init_hashtable_values()
 
 											memcpy(&hash_5[offset_5],&hash_4[offset_4],sizeof(SHA256_CTX));
 											SHA256_Update(&hash_5[offset_5],ta5,SHA256_LEN);
+
+											if(tmp_array_6 && hash_6)
+											{
+										for(int x6 = 0; x6 < 16; x6++)
+										{
+											unsigned int offset_6 = offset_5*16+x6;
+											uint8_t * ta6 = &tmp_array_6[item_size*offset_6];
+											memcpy(ta6,ta5,SHA256_LEN); 
+											ta6[SHA256_LEN] = hex_digits[x6];
+											sha256_to_str(ta6, SHA256_LEN + 1, ta6,md);
+
+											memcpy(&hash_6[offset_6],&hash_5[offset_5],sizeof(SHA256_CTX));
+											SHA256_Update(&hash_6[offset_6],ta6,SHA256_LEN);
+										}
 										}
 									}
 								}
@@ -212,6 +245,7 @@ void init_hashtable_values()
 			}
 		}
 	}
+}
 	printf("Ready to rumble.\n");
 }
 
@@ -451,10 +485,21 @@ bool dcrypt_fast(u8int *data, size_t data_sz,uint32_t*md)
 						index += index_buffer[index]+1;
 						unsigned int offset_5 = offset_4*16+index_buffer[index];
 
-						// depth 6?
-
+						if(tmp_array_6 && hash_6) // depth 6
+						{
+							index += index_buffer[index]+1;
+							unsigned int offset_6 = offset_5*16+index_buffer[index];
+																					// depth 7?
+					
+						
+							memcpy(tmp_array,&tmp_array_6[item_size*offset_6],SHA256_LEN); 
+							memcpy(&hash,&hash_6[offset_6],sizeof(SHA256_CTX));
+						}
+							else
+						{
 						memcpy(tmp_array,&tmp_array_5[item_size*offset_5],SHA256_LEN); 
 						memcpy(&hash,&hash_5[offset_5],sizeof(SHA256_CTX));
+						}
 					}
 					else
 					{
@@ -479,6 +524,7 @@ bool dcrypt_fast(u8int *data, size_t data_sz,uint32_t*md)
 			memcpy(&hash,&hash_1[offset_1],sizeof(SHA256_CTX));
 		}
 	}
+
 
  	do
 	{
